@@ -229,4 +229,7 @@ plt.title('Position Offset from First Epoch')
 plt.xlabel("East (m)")
 plt.ylabel("North (m)")
 plt.gca().set_aspect('equal', adjustable='box')
-plt.show()
+# plt.show()
+
+
+columns_for_end_csv = ["GpsTimeNanos", "Svid", "PrM", "Cn0DbHz"]
