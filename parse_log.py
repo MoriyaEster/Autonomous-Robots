@@ -7,8 +7,6 @@ import navpy
 from gnssutils import EphemerisManager
 import simplekml
 
-input_filepath = "data/sample/gnss_log_2024_04_13_19_51_17.txt"
-
 WEEKSEC = 604800
 LIGHTSPEED = 2.99792458e8
 
@@ -261,10 +259,10 @@ def generate_kml_from_lla(lla_df: np.ndarray):
         point = kml.newpoint(coords=[coordinate])
         point.name = f"Point at {coordinate[0]}, {coordinate[1]}"
 
-    print(coordinates)
-    kml.save("KML.kml")
+    return kml
 
-def main():
+def main(input_filepath: str):
+    file_name: str = input_filepath.split(".")[0]
     measurements, android_fixes = read_file(input_filepath)
     manager, sv_positions, one_epoch = generate_satellite_positions(measurements)
     position_x_y_z = calculate_pos_x_y_z(measurements, sv_positions, one_epoch, manager)
@@ -273,10 +271,15 @@ def main():
     pos_x_y_z = get_position_x_y_z_by_sv_and_pr(sv_positions)
     sv_positions[["Pos.X", "Pos.Y", "Pos.Z"]] = pos_x_y_z
     sv_positions[["Lat", "Lon", "Alt"]] = calculate_lla_based_on_pos_x_y_z(np.stack(pos_x_y_z, axis=0)).to_numpy()[0]
-    lla_df.to_csv('calculated_positions.csv')
-    android_fixes.to_csv('android_position.csv')
-    generate_kml_from_lla(lla_df.to_numpy())
+    kml = generate_kml_from_lla(lla_df.to_numpy())
+    
+    sv_positions.drop(["t_k", "delT_sv"], axis=1, inplace=True)
+    sv_positions = sv_positions[["GPS time","Sat.X","Sat.Y","Sat.Z","Psuedo-range","CN0","Pos.X","Pos.Y","Pos.Z","Lat","Lon","Alt"]]
+    sv_positions.to_csv(f'{file_name}-sv_positions.csv')
+    lla_df.to_csv(f'{file_name}-calculated_positions.csv')
+    android_fixes.to_csv(f'{file_name}-android_positions.csv')
+    kml.save(f"{file_name}-KML.kml")
     
 
 if __name__ == "__main__":
-    main()
+    main("walking.txt")
