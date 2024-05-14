@@ -11,6 +11,15 @@ WEEKSEC = 604800
 LIGHTSPEED = 2.99792458e8
 
 def read_file(path: str):
+    """
+    Reads the data from the specified file path and returns parsed Android fixes and GNSS measurements.
+
+    Args:
+        path (str): The file path to the input data.
+
+    Returns:
+        tuple: A tuple containing parsed Android fixes and GNSS measurements.
+    """
     with open(path) as csvfile:
         reader = csv.reader(csvfile)
         android_fixes = []
@@ -85,6 +94,17 @@ def read_file(path: str):
 
 
 def calculate_satellite_position(ephemeris, timestamp, one_epoch) -> pd.DataFrame:
+    """
+    Calculates satellite positions based on ephemeris data, timestamp, and GNSS measurements for one epoch.
+
+    Args:
+        ephemeris: Ephemeris data for the satellites.
+        timestamp: Timestamp for the epoch.
+        one_epoch: GNSS measurements for one epoch.
+
+    Returns:
+        pd.DataFrame: DataFrame containing calculated satellite positions.
+    """
     mu = 3.986005e14
     OmegaDot_e = 7.2921151467e-5
     F = -4.442807633e-10
@@ -146,7 +166,16 @@ def calculate_satellite_position(ephemeris, timestamp, one_epoch) -> pd.DataFram
     
     return sv_position
 
-def generate_satellite_positions(measurements: pd.DataFrame):
+def generate_satellite_positions(measurements: pd.DataFrame) -> tuple:
+    """
+    Generates satellite positions using GNSS measurements for each epoch.
+
+    Args:
+        measurements (pd.DataFrame): DataFrame containing GNSS measurements.
+
+    Returns:
+        tuple: A tuple containing EphemerisManager, satellite positions, and GNSS measurements for one epoch.
+    """
     manager = EphemerisManager("data")
     epoch = 0
     num_sats = 0
@@ -164,7 +193,19 @@ def generate_satellite_positions(measurements: pd.DataFrame):
     sv_position = calculate_satellite_position(ephemeris, timestamp, one_epoch)
     return manager, sv_position, one_epoch
 
-def least_squares(xs, measured_pseudorange, x0, b0):
+def least_squares(xs, measured_pseudorange, x0, b0) -> tuple:
+    """
+    Performs least squares estimation to calculate receiver position and clock bias.
+
+    Args:
+        xs: Satellite positions.
+        measured_pseudorange: Measured pseudorange.
+        x0: Initial position estimate.
+        b0: Initial clock bias estimate.
+
+    Returns:
+        tuple: Estimated position, clock bias, and norm of the residual vector.
+    """
     dx = 100*np.ones(3)
     b = b0
     # set up the G matrix with the right dimensions. We will later replace the first 3 columns
@@ -189,7 +230,19 @@ def least_squares(xs, measured_pseudorange, x0, b0):
     norm_dp = np.linalg.norm(deltaP)
     return x0, b0, norm_dp
 
-def calculate_pos_x_y_z(measurements: pd.DataFrame, sv_position: pd.DataFrame, one_epoch: pd.DataFrame, manager):
+def calculate_pos_x_y_z(measurements: pd.DataFrame, sv_position: pd.DataFrame, one_epoch: pd.DataFrame, manager) -> np.ndarray:
+    """
+    Calculates receiver position in ECEF coordinates using GNSS measurements.
+
+    Args:
+        measurements (pd.DataFrame): DataFrame containing GNSS measurements.
+        sv_position (pd.DataFrame): DataFrame containing satellite positions.
+        one_epoch (pd.DataFrame): DataFrame containing GNSS measurements for one epoch.
+        manager: EphemerisManager instance.
+
+    Returns:
+        np.ndarray: Array containing receiver positions in ECEF coordinates.
+    """
     b0 = 0
     x0 = np.array([0, 0, 0])
     xs = sv_position[['Sat.X', 'Sat.Y', 'Sat.Z']].to_numpy()
@@ -217,14 +270,34 @@ def calculate_pos_x_y_z(measurements: pd.DataFrame, sv_position: pd.DataFrame, o
     ecef_array = np.stack(ecef_list, axis=0)
     return ecef_array
 
-def get_position_x_y_z_by_sv_and_pr(sv_position, x=np.array([0, 0, 0]), b=0):
+def get_position_x_y_z_by_sv_and_pr(sv_position, x=np.array([0, 0, 0]), b=0) -> np.ndarray:
+    """
+    Calculates receiver position using satellite positions and measured pseudoranges.
+
+    Args:
+        sv_position: DataFrame containing satellite positions.
+        x: Initial position estimate.
+        b: Clock bias.
+
+    Returns:
+        np.ndarray: Array containing receiver positions.
+    """
     xs = sv_position[['Sat.X', 'Sat.Y', 'Sat.Z']].to_numpy()
     pr = sv_position['Psuedo-range']
 
     x, b, dp = least_squares(xs, pr, x, b)
     return x
 
-def calculate_lla_based_on_pos_x_y_z(ecef_array: np.ndarray):
+def calculate_lla_based_on_pos_x_y_z(ecef_array: np.ndarray) -> pd.DataFrame:
+    """
+    Calculates receiver latitude, longitude, and altitude from ECEF coordinates.
+
+    Args:
+        ecef_array (np.ndarray): Array containing receiver positions in ECEF coordinates.
+
+    Returns:
+        pd.DataFrame: DataFrame containing receiver latitude, longitude, and altitude.
+    """
     #initial guesses of receiver clock bias and position
     if(ecef_array.ndim == 1):
         lla_array = np.stack(navpy.ecef2lla(ecef_array),axis=0).reshape(-1,3)
@@ -244,7 +317,16 @@ def calculate_lla_based_on_pos_x_y_z(ecef_array: np.ndarray):
     # plt.gca().set_aspect('equal', adjustable='box')
     # plt.show()
 
-def generate_kml_from_lla(lla_df: np.ndarray):
+def generate_kml_from_lla(lla_df: np.ndarray) -> simplekml.Kml:
+    """
+    Generates KML file from latitude, longitude, and altitude data.
+
+    Args:
+        lla_df (np.ndarray): Array containing latitude, longitude, and altitude data.
+
+    Returns:
+        simplekml.Kml: KML object containing the generated points.
+    """
     kml = simplekml.Kml()
     
     coordinates = []
@@ -262,6 +344,12 @@ def generate_kml_from_lla(lla_df: np.ndarray):
     return kml
 
 def main(input_filepath: str):
+    """
+    Main function to read data, process it, and generate output files.
+
+    Args:
+        input_filepath (str): File path to the input data.
+    """
     file_name: str = input_filepath.split(".")[0]
     measurements, android_fixes = read_file(input_filepath)
     manager, sv_positions, one_epoch = generate_satellite_positions(measurements)
