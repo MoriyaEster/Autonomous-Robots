@@ -332,8 +332,8 @@ def generate_kml_from_lla(lla_df: np.ndarray) -> simplekml.Kml:
     coordinates = []
   
     for row in range (len(lla_df)):
-        lat = lla_df[row][0]
-        lon = lla_df[row][1]
+        lat = lla_df[row][1]
+        lon = lla_df[row][0]
         alt = lla_df[row][2]
         coordinates.append((lat, lon, alt))
 
